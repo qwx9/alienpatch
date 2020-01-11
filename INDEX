@@ -1,0 +1,4 @@
+libopusenc		build latest libopusenc (git://git.xiph.org/libopusenc.git)
+opus			build latest libopus (git://git.xiph.org/libopusenc.git)
+opus-tools		build latest opus-tools (git://git.xiph.org/opus-tools.git), requires libopusfile, libopusenc, libopus
+opusfile		build latest libopusfile (git://git.xiph.org/opusfile.git)
