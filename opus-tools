@@ -1,0 +1,140 @@
+--- /dev/null	Wed Dec 11 10:26:09 2019
++++ mkfile	Sat Jan 11 02:50:28 2020
+@@ -0,0 +1,40 @@
++</$objtype/mkfile
++
++CC=pcc
++CFLAGS=-Iinclude \
++	-I/sys/src/cmd/audio/libogg \
++	-I /sys/include/ape/opus \
++	-D_POSIX_SOURCE \
++	-D__GNU_LIBRARY__ \
++	-D_C99_SNPRINTF_EXTENSION \
++	-DSPX_RESAMPLE_EXPORT= -DRANDOM_PREFIX=opustools -DOUTSIDE_SPEEX \
++	-DRESAMPLE_FULL_SINC_TABLE -DOPUSTOOLS \
++	-DPACKAGE_NAME="opus-tools" -DPACKAGE_VERSION="fuckoff" \
++	-c
++
++TARG=opusdec opusenc opusinfo
++BIN=/$objtype/bin/audio
++
++LIB=\
++	/$objtype/lib/ape/libopusfile.a \
++	/$objtype/lib/ape/libopusenc.a \
++	/$objtype/lib/ape/libopus.a \
++
++
++</sys/src/cmd/mkmany
++
++%.$O:	src/%.c
++	$CC $CFLAGS $prereq
++
++%.$O:	share/%.c
++	$CC $CFLAGS $prereq
++
++COMMON=opus_header.$O resample.$O getopt.$O getopt1.$O
++
++$O.opusdec: opusdec.$O wav_io.$O wave_out.$O  diag_range.$O $COMMON
++$O.opusenc: opusenc.$O audio-in.$O diag_range.$O flac.$O picture.$O $COMMON
++$O.opusinfo: opusinfo.$O info_opus.$O picture.$O $COMMON
++
++uninstall:V:
++	for (i in $TARG)
++		rm -f $BIN/$i
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/audio-in.c	Mon Sep  9 09:24:16 2019
++++ src/audio-in.c	Sat Jan 11 00:28:31 2020
+@@ -718,7 +718,11 @@ long wav_read(void *in, float *buffer, i
+     int sampbyte = f->samplesize / 8;
+     int realsamples = f->totalsamples > 0 && samples > (f->totalsamples - f->samplesread)
+         ? (int)(f->totalsamples - f->samplesread) : samples;
+-    signed char *buf = alloca(realsamples*sampbyte*f->channels);
++    signed char *buf = malloc(realsamples*sampbyte*f->channels);
++    if(buf == NULL){
++        fprintf(stderr, "allocation failure\n");
++        return 0;
++    }
+     int i,j;
+     int *ch_permute = f->channel_permute;
+ 
+@@ -790,17 +794,20 @@ long wav_read(void *in, float *buffer, i
+             }
+         }
+         else {
++            free(buf);
+             fprintf(stderr, _("Big endian 24 bit PCM data is not currently "
+                               "supported, aborting.\n"));
+             return 0;
+         }
+     }
+     else {
++        free(buf);
+         fprintf(stderr, _("Internal error: attempt to read unsupported "
+                           "bitdepth %d\n"), f->samplesize);
+         return 0;
+     }
+ 
++    free(buf);
+     return realsamples;
+ }
+ 
+@@ -809,9 +816,14 @@ long wav_ieee_read(void *in, float *buff
+     wavfile *f = (wavfile *)in;
+     int realsamples = f->totalsamples > 0 && samples > (f->totalsamples - f->samplesread)
+         ? (int)(f->totalsamples - f->samplesread) : samples;
+-    float *buf = alloca(realsamples*4*f->channels); /* de-interleave buffer */
++    float *buf = malloc(realsamples*4*f->channels); /* de-interleave buffer */
+     int i,j;
+ 
++    if(buf == NULL){
++        fprintf(stderr, "allocation failure\n");
++        return 0;
++    }
++
+     realsamples = (int)fread(buf, 4*f->channels, realsamples, f->f);
+     f->samplesread += realsamples;
+ 
+@@ -819,6 +831,7 @@ long wav_ieee_read(void *in, float *buff
+         for (j=0; j < f->channels; j++)
+             buffer[i*f->channels+j] = get_le_float(buf + i*f->channels + f->channel_permute[j]);
+ 
++    free(buf);
+     return realsamples;
+ }
+ 
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Mon Sep  9 09:24:16 2019
++++ src/opusdec.c	Sat Jan 11 02:51:09 2020
+@@ -494,8 +494,12 @@ opus_int64 audio_write(float *pcm, int c
+    short *out;
+    float *buf;
+    float *output;
+-   out=alloca(sizeof(short)*MAX_FRAME_SIZE*channels);
+-   buf=alloca(sizeof(float)*MAX_FRAME_SIZE*channels);
++   out=malloc(sizeof(short)*MAX_FRAME_SIZE*channels);
++   buf=malloc(sizeof(float)*MAX_FRAME_SIZE*channels);
++   if(out == NULL || buf == NULL){
++      fprintf(stderr, "allocation failure\n");
++      return 0;
++   }
+    maxout=((link_read/48000)*rate + (link_read%48000)*rate/48000) - link_out;
+    maxout=maxout<0?0:maxout;
+    do {
+@@ -561,6 +565,8 @@ opus_int64 audio_write(float *pcm, int c
+        maxout-=ret;
+      }
+    } while (frame_size>0 && maxout>0);
++   free(buf);
++   free(out);
+    return sampout;
+ }
+ 
+@@ -848,8 +854,8 @@ int main(int argc, char **argv)
+    }
+    else
+    {
+-      st=op_open_url(inFile,NULL,NULL);
+-      if (st==NULL)
++      //st=op_open_url(inFile,NULL,NULL);
++      //if (st==NULL)
+       {
+          st=op_open_file(inFile,NULL);
+       }

@@ -1,0 +1,32 @@
+--- /dev/null	Wed Dec 11 10:26:09 2019
++++ mkfile	Sat Jan 11 01:08:03 2020
+@@ -0,0 +1,29 @@
++</$objtype/mkfile
++
++CC=pcc
++CFLAGS=-Iinclude \
++	-I/sys/src/cmd/audio/libogg \
++	-I/sys/include/ape/opus \
++	-DPACKAGE_VERSION="fuckoff" \
++	-D_POSIX_SOURCE \
++	-c
++LIB=libopusfile.a
++
++OFILES=\
++	info.$O \
++	internal.$O \
++	opusfile.$O \
++	stream.$O \
++
++</sys/src/cmd/mklib
++
++LIBDIR=/$objtype/lib/ape
++
++%.$O:	src/%.c
++	$CC $CFLAGS src/$stem.c
++
++installheaders:V:
++	mkdir -p /sys/include/ape/opus
++	dircp include /sys/include/ape/opus
++
++install:VQ:	installheaders

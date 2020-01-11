@@ -1,0 +1,37 @@
+--- /dev/null	Wed Dec 11 10:26:09 2019
++++ mkfile	Sat Jan 11 02:42:30 2020
+@@ -0,0 +1,34 @@
++</$objtype/mkfile
++
++CC=pcc
++CFLAGS=-Iinclude \
++	-I/sys/src/cmd/audio/libogg \
++	-I/sys/include/ape/opus \
++	-DPACKAGE_VERSION="fuckoff" \
++	-DPACKAGE_NAME="libopusenc" \
++	-DOUTSIDE_SPEEX \
++	-DRANDOM_PREFIX=opusenc \
++	-D_POSIX_SOURCE \
++	-c
++LIB=libopusenc.a
++
++OFILES=\
++	ogg_packer.$O \
++	opus_header.$O \
++	opusenc.$O \
++	picture.$O \
++	resample.$O \
++	unicode_support.$O \
++
++</sys/src/cmd/mklib
++
++LIBDIR=/$objtype/lib/ape
++
++%.$O:	src/%.c
++	$CC $CFLAGS src/$stem.c
++
++installheaders:V:
++	mkdir -p /sys/include/ape/opus
++	dircp include /sys/include/ape/opus
++
++install:VQ:	installheaders
