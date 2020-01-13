@@ -1,0 +1,89 @@
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Sun Jan 12 23:58:30 2020
++++ src/opusdec.c	Mon Jan 13 00:17:17 2020
+@@ -683,7 +683,7 @@ int main(int argc, char **argv)
+    int file_output;
+    int old_li=-1;
+    int li;
+-   int quiet = 0;
++   int quiet = 1;
+    int forcewav = 0;
+    ogg_int64_t nb_read_total=0;
+    ogg_int64_t link_read=0;
+@@ -709,10 +709,10 @@ int main(int argc, char **argv)
+    float loss_percent=-1;
+    float manual_gain=0;
+    int force_rate=0;
+-   int force_stereo=0;
++   int force_stereo=1;
+    int requested_channels=-1;
+    int channels=-1;
+-   int rate=0;
++   int rate=44100;
+    int wav_format=0;
+    int dither=1;
+    int fp=0;
+@@ -801,13 +801,7 @@ int main(int argc, char **argv)
+          goto done;
+       }
+    }
+-   if (argc_utf8-optind!=2 && argc_utf8-optind!=1)
+-   {
+-      usage();
+-      exit_code=1;
+-      goto done;
+-   }
+-   inFile=argv_utf8[optind];
++   inFile="-";
+ 
+    /*Output to a file or playback?*/
+    file_output=argc_utf8-optind==2;
+@@ -824,7 +818,7 @@ int main(int argc, char **argv)
+      }
+      wav_format|=forcewav;
+    } else {
+-     outFile=NULL;
++     outFile="-";
+      wav_format=0;
+      /*If playing to audio out, default the rate to 48000
+        instead of the original rate. The original rate is
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/opusenc.c	Sun Jan 12 23:58:30 2020
++++ src/opusenc.c	Mon Jan 13 00:20:27 2020
+@@ -417,7 +417,7 @@ int main(int argc, char **argv)
+   time_t             last_spin=0;
+   int                last_spin_len=0;
+   /*Settings*/
+-  int                quiet=0;
++  int                quiet=1;
+   opus_int32         bitrate=-1;
+   opus_int32         rate=48000;
+   opus_int32         frame_size=960;
+@@ -458,12 +458,12 @@ int main(int argc, char **argv)
+   range_file=NULL;
+   in_format=NULL;
+   inopt.channels=chan;
+-  inopt.rate=rate;
++  inopt.rate=44100;
+   /* 0 dB gain is recommended unless you know what you're doing */
+   inopt.gain=0;
+   inopt.samplesize=16;
+   inopt.endianness=0;
+-  inopt.rawmode=0;
++  inopt.rawmode=1;
+   inopt.ignorelength=0;
+   inopt.copy_comments=1;
+   inopt.copy_pictures=1;
+@@ -790,12 +790,8 @@ int main(int argc, char **argv)
+         break;
+     }
+   }
+-  if (argc_utf8-optind!=2) {
+-    usage();
+-    exit(1);
+-  }
+-  inFile=argv_utf8[optind];
+-  outFile=argv_utf8[optind+1];
++  inFile="-";
++  outFile="-";
+ 
+   if (cline_size > 0) {
+     ret = ope_comments_add(inopt.comments, "ENCODER_OPTIONS", ENCODER_string);
