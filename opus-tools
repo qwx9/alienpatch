@@ -1,28 +1,31 @@
---- /dev/null	Wed Dec 11 10:26:09 2019
-+++ mkfile	Sat Jan 11 02:50:28 2020
-@@ -0,0 +1,40 @@
-+</$objtype/mkfile
-+
-+CC=pcc
-+CFLAGS=-Iinclude \
-+	-I/sys/src/cmd/audio/libogg \
-+	-I /sys/include/ape/opus \
-+	-D_POSIX_SOURCE \
-+	-D__GNU_LIBRARY__ \
-+	-D_C99_SNPRINTF_EXTENSION \
-+	-DSPX_RESAMPLE_EXPORT= -DRANDOM_PREFIX=opustools -DOUTSIDE_SPEEX \
-+	-DRESAMPLE_FULL_SINC_TABLE -DOPUSTOOLS \
-+	-DPACKAGE_NAME="opus-tools" -DPACKAGE_VERSION="fuckoff" \
-+	-c
+--- /dev/null	Wed Jan  8 06:24:14 2020
++++ mkfile	Sat Feb  1 21:20:19 2020
+@@ -0,0 +1,39 @@
++APE=/sys/src/ape
++<$APE/config
 +
 +TARG=opusdec opusenc opusinfo
 +BIN=/$objtype/bin/audio
++
++CFLAGS=$CFLAGS -c \
++	-Iinclude \
++	-I/sys/src/cmd/audio/libogg \
++	-I/sys/include/ape/opus \
++	-D_POSIX_SOURCE \
++	-D__GNU_LIBRARY__ \
++	-D_C99_SNPRINTF_EXTENSION \
++	-DSPX_RESAMPLE_EXPORT= \
++	-DRANDOM_PREFIX=opustools \
++	-DOUTSIDE_SPEEX \
++	-DRESAMPLE_FULL_SINC_TABLE \
++	-DOPUSTOOLS \
++	-DPACKAGE_NAME="opus-tools" \
++	-DPACKAGE_VERSION="fuckoff"
 +
 +LIB=\
 +	/$objtype/lib/ape/libopusfile.a \
 +	/$objtype/lib/ape/libopusenc.a \
 +	/$objtype/lib/ape/libopus.a \
-+
 +
 +</sys/src/cmd/mkmany
 +
@@ -34,15 +37,11 @@
 +
 +COMMON=opus_header.$O resample.$O getopt.$O getopt1.$O
 +
-+$O.opusdec: opusdec.$O wav_io.$O wave_out.$O  diag_range.$O $COMMON
-+$O.opusenc: opusenc.$O audio-in.$O diag_range.$O flac.$O picture.$O $COMMON
-+$O.opusinfo: opusinfo.$O info_opus.$O picture.$O $COMMON
-+
-+uninstall:V:
-+	for (i in $TARG)
-+		rm -f $BIN/$i
++$O.opusdec:	opusdec.$O wav_io.$O wave_out.$O  diag_range.$O $COMMON
++$O.opusenc:	opusenc.$O audio-in.$O diag_range.$O flac.$O picture.$O $COMMON
++$O.opusinfo:	opusinfo.$O info_opus.$O picture.$O $COMMON
 --- /mnt/git/branch/heads/test3-appveyor/tree/src/audio-in.c	Mon Sep  9 09:24:16 2019
-+++ src/audio-in.c	Sat Jan 11 00:28:31 2020
++++ src/audio-in.c	Sat Feb  1 21:27:05 2020
 @@ -718,7 +718,11 @@ long wav_read(void *in, float *buffer, i
      int sampbyte = f->samplesize / 8;
      int realsamples = f->totalsamples > 0 && samples > (f->totalsamples - f->samplesread)
@@ -102,7 +101,7 @@
  }
  
 --- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Mon Sep  9 09:24:16 2019
-+++ src/opusdec.c	Sat Jan 11 02:51:09 2020
++++ src/opusdec.c	Sat Feb  1 21:28:20 2020
 @@ -494,8 +494,12 @@ opus_int64 audio_write(float *pcm, int c
     short *out;
     float *buf;
@@ -138,3 +137,13 @@
        {
           st=op_open_file(inFile,NULL);
        }
+@@ -1057,7 +1063,8 @@ int main(int argc, char **argv)
+             resampler=NULL;
+          }
+          /*We've encountered a new link.*/
+-         link_read=link_out=0;
++         link_read=0;
++         link_out=0;
+          head=op_head(st, li);
+          if (!force_stereo && channels!=head->channel_count)
+          {

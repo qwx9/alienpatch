@@ -1,5 +1,18 @@
---- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Sun Jan 12 23:58:30 2020
-+++ src/opusdec.c	Mon Jan 13 09:25:12 2020
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/audio-in.c	Sat Feb  1 21:29:22 2020
++++ src/audio-in.c	Sat Feb  1 21:31:20 2020
+@@ -668,8 +668,8 @@ int wav_open(FILE *in, oe_enc_opt *opt, 
+                this length so that we do not misinterpret any additional
+                chunks after this as audio.  Also use this length to report
+                percent progress. */
+-            wav->totalsamples = opt->total_samples_per_channel =
+-                len/(format.channels*samplesize);
++            wav->totalsamples = len/(format.channels*samplesize);
++            opt->total_samples_per_channel = wav->totalsamples;
+         }
+         else
+         {
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Sat Feb  1 21:29:22 2020
++++ src/opusdec.c	Sat Feb  1 21:29:42 2020
 @@ -436,27 +436,13 @@ void usage(void)
      defined HAVE_SYS_AUDIOIO_H || defined WIN32 || defined _WIN32
     printf("Usage: opusdec [options] input [output]\n");
@@ -83,8 +96,8 @@
       wav_format=0;
       /*If playing to audio out, default the rate to 48000
         instead of the original rate. The original rate is
---- /mnt/git/branch/heads/test3-appveyor/tree/src/opusenc.c	Sun Jan 12 23:58:30 2020
-+++ src/opusenc.c	Mon Jan 13 09:25:59 2020
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/opusenc.c	Sat Feb  1 21:29:22 2020
++++ src/opusenc.c	Sat Feb  1 21:29:42 2020
 @@ -117,20 +117,12 @@ static void opustoolsversion_short(const
  
  static void usage(void)
