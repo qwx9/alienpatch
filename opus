@@ -1,16 +1,21 @@
---- /dev/null	Wed Dec 11 10:26:09 2019
-+++ mkfile	Sat Jan 11 02:26:04 2020
-@@ -0,0 +1,181 @@
-+</$objtype/mkfile
+--- /mnt/git/branch/heads/master/tree/celt/stack_alloc.h	Wed Dec  4 11:00:56 2019
++++ celt/stack_alloc.h	Sat Feb  1 15:27:54 2020
+@@ -140,7 +140,7 @@ extern char *global_stack_top;
+ 
+ #else
+ 
+-#define ALIGN(stack, size) ((stack) += ((size) - (long)(stack)) & ((size) - 1))
++#define ALIGN(stack, size) ((stack) += ((size) - (_intptr_t)(stack)) & ((size) - 1))
+ #define PUSH(stack, size, type) (ALIGN((stack),sizeof(type)/sizeof(char)),(stack)+=(size)*(sizeof(type)/sizeof(char)),(type*)((stack)-(size)*(sizeof(type)/sizeof(char))))
+ #if 0 /* Set this to 1 to instrument pseudostack usage */
+ #define RESTORE_STACK (printf("%ld %s:%d\n", global_stack-scratch_ptr, __FILE__, __LINE__),global_stack = _saved_stack)
+--- /dev/null	Wed Jan  8 06:24:14 2020
++++ mkfile	Sat Feb  1 20:40:04 2020
+@@ -0,0 +1,187 @@
++APE=/sys/src/ape
++<$APE/config
 +
-+CC=pcc
-+CFLAGS=-Iinclude -Isilk -Isilk/fixed -Isilk/float -Icelt \
-+	-DPACKAGE_VERSION="$VERSION" \
-+	-DOPUS_BUILD \
-+	-DCUSTOM_MODES \
-+	-DNONTHREADSAFE_PSEUDOSTACK \
-+	-c
-+LIB=libopus.a
++LIB=/$objtype/lib/ape/libopus.a
 +
 +OFILES=\
 +# silk \
@@ -154,10 +159,27 @@
 +	opus_projection_decoder.$O \
 +	mapping_matrix.$O
 +
++HFILES=\
++	/sys/include/ape/opus/opus.h \
++	/sys/include/ape/opus/opus_custom.h \
++	/sys/include/ape/opus/opus_defines.h \
++	/sys/include/ape/opus/opus_multistream.h \
++	/sys/include/ape/opus/opus_projection.h \
++	/sys/include/ape/opus/opus_types.h \
 +
-+</sys/src/cmd/mklib
++UPDATE=\
++	mkfile\
++	$HFILES\
++	${OFILES:%.$O=%.c}\
 +
-+LIBDIR=/$objtype/lib/ape
++</sys/src/cmd/mksyslib
++
++CFLAGS=$CFLAGS -c -Iinclude -Isilk -Isilk/fixed -Isilk/float -Icelt \
++	-DPACKAGE_VERSION="$VERSION" \
++	-DOPUS_BUILD \
++	-DCUSTOM_MODES \
++	-DNONTHREADSAFE_PSEUDOSTACK \
++	-DHAVE_STDINT_H
 +
 +%.$O:	silk/%.c
 +	$CC $CFLAGS silk/$stem.c
@@ -174,11 +196,36 @@
 +%.$O:	src/%.c
 +	$CC $CFLAGS src/$stem.c
 +
-+installheaders:V:
++$HFILES:
 +	mkdir -p /sys/include/ape/opus
 +	dircp include /sys/include/ape/opus
-+
-+install:VQ:	installheaders
-+
-+uninstall:V:
-+	rm -rf $LIBDIR/$LIB /sys/include/ape/opus
+--- /mnt/git/branch/heads/master/tree/silk/LPC_inv_pred_gain.c	Wed Dec  4 11:00:56 2019
++++ silk/LPC_inv_pred_gain.c	Sat Feb  1 19:26:10 2020
+@@ -45,7 +45,7 @@ static opus_int32 LPC_inverse_pred_gain_
+ )
+ {
+     opus_int   k, n, mult2Q;
+-    opus_int32 invGain_Q30, rc_Q31, rc_mult1_Q30, rc_mult2, tmp1, tmp2;
++    opus_int32 invGain_Q30, rc_Q31, rc_mult1_Q30, rc_mult2, tmp1, tmp2, tmp3;
+ 
+     invGain_Q30 = SILK_FIX_CONST( 1, 30 );
+     for( k = order - 1; k > 0; k-- ) {
+@@ -80,14 +80,14 @@ static opus_int32 LPC_inverse_pred_gain_
+             opus_int64 tmp64;
+             tmp1 = A_QA[ n ];
+             tmp2 = A_QA[ k - n - 1 ];
+-            tmp64 = silk_RSHIFT_ROUND64( silk_SMULL( silk_SUB_SAT32(tmp1,
+-                  MUL32_FRAC_Q( tmp2, rc_Q31, 31 ) ), rc_mult2 ), mult2Q);
++            tmp3 = silk_SUB_SAT32(tmp1, MUL32_FRAC_Q( tmp2, rc_Q31, 31 ) );
++            tmp64 = silk_RSHIFT_ROUND64( silk_SMULL(tmp3, rc_mult2 ), mult2Q);
+             if( tmp64 > silk_int32_MAX || tmp64 < silk_int32_MIN ) {
+                return 0;
+             }
+             A_QA[ n ] = ( opus_int32 )tmp64;
+-            tmp64 = silk_RSHIFT_ROUND64( silk_SMULL( silk_SUB_SAT32(tmp2,
+-                  MUL32_FRAC_Q( tmp1, rc_Q31, 31 ) ), rc_mult2), mult2Q);
++            tmp3 = silk_SUB_SAT32(tmp2, MUL32_FRAC_Q( tmp1, rc_Q31, 31 ) );
++            tmp64 = silk_RSHIFT_ROUND64( silk_SMULL(tmp3, rc_mult2), mult2Q);
+             if( tmp64 > silk_int32_MAX || tmp64 < silk_int32_MIN ) {
+                return 0;
+             }
