@@ -1,0 +1,118 @@
+--- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Fri Aug 21 01:36:31 2020
++++ src/opusdec.c	Fri Aug 21 01:32:19 2020
+@@ -469,7 +469,7 @@
+ 
+ opus_int64 audio_write(float *pcm, int channels, int frame_size, FILE *fout,
+  SpeexResamplerState *resampler, float *clipmem, shapestate *shapemem,
+- int file, int rate, opus_int64 link_read, opus_int64 link_out, int fp)
++ int file, int rate, opus_int64 link_read, opus_int64 link_out, int fp, opus_int64 *seek)
+ {
+    opus_int64 sampout=0;
+    opus_int64 maxout;
+@@ -503,6 +503,14 @@
+        frame_size=0;
+      }
+ 
++     if (*seek > 0)
++     {
++       ret = *seek>out_len?out_len:*seek;
++       ret *= (fp?sizeof(float):sizeof(short))*channels;
++       *seek -= ret;
++       goto next;
++     }
++
+      if (!file||!fp)
+      {
+         /*Convert to short and save to output file*/
+@@ -546,6 +554,7 @@
+ #endif
+          ret=fwrite(fp?(char *)output:(char *)out,
+           (fp?sizeof(float):sizeof(short))*channels, out_len, fout);
++next:
+        sampout+=ret;
+        maxout-=ret;
+      }
+@@ -632,7 +641,7 @@
+ static void drain_resampler(FILE *fout, int file_output,
+  SpeexResamplerState *resampler, int channels, int rate,
+  opus_int64 link_read, opus_int64 link_out, float *clipmem,
+- shapestate *shapemem, opus_int64 *audio_size, int fp)
++ shapestate *shapemem, opus_int64 *audio_size, int fp, opus_int64 *seek)
+ {
+    float *zeros;
+    int drain;
+@@ -643,7 +652,7 @@
+       opus_int64 outsamp;
+       int tmp=MINI(drain, 100);
+       outsamp=audio_write(zeros, channels, tmp, fout, resampler, clipmem,
+-       shapemem, file_output, rate, link_read, link_out, fp);
++       shapemem, file_output, rate, link_read, link_out, fp, seek);
+       link_out+=outsamp;
+       (*audio_size)+=(fp?sizeof(float):sizeof(short))*outsamp*channels;
+       drain-=tmp;
+@@ -690,6 +699,7 @@
+       {0, 0, 0, 0}
+    };
+    opus_int64 audio_size=0;
++   opus_int64 seek=-1;
+    double last_coded_seconds=0;
+    float loss_percent=-1;
+    float manual_gain=0;
+@@ -725,7 +735,7 @@
+    /*Process options*/
+    while (1)
+    {
+-      c = getopt_long(argc_utf8, argv_utf8, "hV",
++      c = getopt_long(argc_utf8, argv_utf8, "hVs:",
+                        long_options, &option_index);
+       if (c==-1)
+          break;
+@@ -777,6 +787,9 @@
+       case 'h':
+          usage();
+          goto done;
++      case 's':
++         seek = atoi(optarg);
++         break;
+       case 'V':
+          version();
+          goto done;
+@@ -990,6 +1003,11 @@
+       op_set_decode_callback(st, (op_decode_cb_func)decode_cb, &cb_ctx);
+    }
+ 
++   if (seek != -1)
++   {
++      seek *= rate;
++   }
++
+    /*Main decoding loop*/
+    while (1)
+    {
+@@ -1033,7 +1051,7 @@
+          {
+             drain_resampler(fout, file_output, resampler, channels, rate,
+              link_read, link_out, clipmem, dither?&shapemem:NULL, &audio_size,
+-             fp);
++             fp, &seek);
+             /*Neither speex_resampler_reset_mem() nor
+               speex_resampler_skip_zeros() clear the number of fractional
+               samples properly, so we just destroy it. It will get re-created
+@@ -1141,7 +1159,7 @@
+       }
+       outsamp=audio_write(permuted_output?permuted_output:output, channels,
+        nb_read, fout, resampler, clipmem, dither?&shapemem:0, file_output,
+-       rate, link_read, link_out, fp);
++       rate, link_read, link_out, fp, &seek);
+       link_out+=outsamp;
+       audio_size+=(fp?sizeof(float):sizeof(short))*outsamp*channels;
+    }
+@@ -1149,7 +1167,7 @@
+    if (resampler!=NULL)
+    {
+       drain_resampler(fout, file_output, resampler, channels, rate,
+-       link_read, link_out, clipmem, dither?&shapemem:NULL, &audio_size, fp);
++       link_read, link_out, clipmem, dither?&shapemem:NULL, &audio_size, fp, &seek);
+       speex_resampler_destroy(resampler);
+    }
+ 
