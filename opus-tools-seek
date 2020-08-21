@@ -9,21 +9,25 @@
  {
     opus_int64 sampout=0;
     opus_int64 maxout;
-@@ -503,6 +503,14 @@
+@@ -497,10 +497,18 @@
+         pcm, &in_len, buf, &out_len);
+        pcm += channels*(in_len);
+        frame_size -= in_len;
++       ret = *seek<in_len?*seek:in_len;
+      } else {
+        output=pcm;
+        out_len=frame_size<maxout?(unsigned)frame_size:(unsigned)maxout;
         frame_size=0;
-      }
- 
-+     if (*seek > 0)
-+     {
-+       ret = *seek>out_len?out_len:*seek;
-+       ret *= (fp?sizeof(float):sizeof(short))*channels;
-+       *seek -= ret;
-+       goto next;
++       ret = *seek<out_len?*seek:out_len;
 +     }
 +
++     if (*seek > 0)
++     {
++       *seek -= ret;
++       goto next;
+      }
+ 
       if (!file||!fp)
-      {
-         /*Convert to short and save to output file*/
 @@ -546,6 +554,7 @@
  #endif
           ret=fwrite(fp?(char *)output:(char *)out,
