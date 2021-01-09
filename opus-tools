@@ -40,9 +40,9 @@
 +$O.opusdec:	opusdec.$O wav_io.$O wave_out.$O  diag_range.$O $COMMON
 +$O.opusenc:	opusenc.$O audio-in.$O diag_range.$O flac.$O picture.$O $COMMON
 +$O.opusinfo:	opusinfo.$O info_opus.$O picture.$O $COMMON
---- /mnt/git/branch/heads/test3-appveyor/tree/src/audio-in.c	Mon Sep  9 09:24:16 2019
-+++ src/audio-in.c	Sat Feb  1 21:27:05 2020
-@@ -718,7 +718,11 @@ long wav_read(void *in, float *buffer, i
+--- /mnt/git/object/ae5d6d59e82ef40300a4dece7897499685f87184/tree/src/audio-in.c
++++ src/audio-in.c
+@@ -718,7 +718,11 @@
      int sampbyte = f->samplesize / 8;
      int realsamples = f->totalsamples > 0 && samples > (f->totalsamples - f->samplesread)
          ? (int)(f->totalsamples - f->samplesread) : samples;
@@ -55,20 +55,11 @@
      int i,j;
      int *ch_permute = f->channel_permute;
  
-@@ -790,17 +794,20 @@ long wav_read(void *in, float *buffer, i
-             }
-         }
-         else {
-+            free(buf);
-             fprintf(stderr, _("Big endian 24 bit PCM data is not currently "
-                               "supported, aborting.\n"));
-             return 0;
-         }
-     }
+@@ -806,9 +810,11 @@
      else {
-+        free(buf);
          fprintf(stderr, _("Internal error: attempt to read unsupported "
                            "bitdepth %d\n"), f->samplesize);
++        free(buf);
          return 0;
      }
  
@@ -76,7 +67,7 @@
      return realsamples;
  }
  
-@@ -809,9 +816,14 @@ long wav_ieee_read(void *in, float *buff
+@@ -817,9 +823,14 @@
      wavfile *f = (wavfile *)in;
      int realsamples = f->totalsamples > 0 && samples > (f->totalsamples - f->samplesread)
          ? (int)(f->totalsamples - f->samplesread) : samples;
@@ -92,17 +83,17 @@
      realsamples = (int)fread(buf, 4*f->channels, realsamples, f->f);
      f->samplesread += realsamples;
  
-@@ -819,6 +831,7 @@ long wav_ieee_read(void *in, float *buff
-         for (j=0; j < f->channels; j++)
-             buffer[i*f->channels+j] = get_le_float(buf + i*f->channels + f->channel_permute[j]);
+@@ -836,6 +847,7 @@
+                     get_be_float(buf + i*f->channels + f->channel_permute[j]);
+     }
  
 +    free(buf);
      return realsamples;
  }
  
---- /mnt/git/branch/heads/test3-appveyor/tree/src/opusdec.c	Mon Sep  9 09:24:16 2019
-+++ src/opusdec.c	Sat Feb  1 21:28:20 2020
-@@ -494,8 +494,12 @@ opus_int64 audio_write(float *pcm, int c
+--- /mnt/git/object/ae5d6d59e82ef40300a4dece7897499685f87184/tree/src/opusdec.c
++++ src/opusdec.c
+@@ -494,8 +494,12 @@
     short *out;
     float *buf;
     float *output;
@@ -117,7 +108,7 @@
     maxout=((link_read/48000)*rate + (link_read%48000)*rate/48000) - link_out;
     maxout=maxout<0?0:maxout;
     do {
-@@ -561,6 +565,8 @@ opus_int64 audio_write(float *pcm, int c
+@@ -561,6 +565,8 @@
         maxout-=ret;
       }
     } while (frame_size>0 && maxout>0);
@@ -126,7 +117,7 @@
     return sampout;
  }
  
-@@ -848,8 +854,8 @@ int main(int argc, char **argv)
+@@ -848,8 +854,8 @@
     }
     else
     {
@@ -137,7 +128,7 @@
        {
           st=op_open_file(inFile,NULL);
        }
-@@ -1057,7 +1063,8 @@ int main(int argc, char **argv)
+@@ -1057,7 +1063,8 @@
              resampler=NULL;
           }
           /*We've encountered a new link.*/
