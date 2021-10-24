@@ -1,5 +1,6 @@
---- /dev/null	Wed Jan  8 06:24:14 2020
-+++ mkfile	Sat Feb  1 20:37:33 2020
+diff 43779464dc7717b9211057df70d3caf5c904592c uncommitted
+--- /tmp/diff100000206984
++++ b/mkfile
 @@ -0,0 +1,39 @@
 +APE=/sys/src/ape
 +<$APE/config

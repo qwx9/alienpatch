@@ -1,6 +1,7 @@
---- /mnt/git/object/9e6bc60eca7b34de0173ae12a5de7d6699bffe86/tree/src/audio-in.c
-+++ src/audio-in.c
-@@ -668,8 +668,8 @@
+diff 1d5e00558c79cf9a4266124d393cfbc879df7475 uncommitted
+--- a/src/audio-in.c
++++ b/src/audio-in.c
+@@ -671,8 +671,8 @@
                 this length so that we do not misinterpret any additional
                 chunks after this as audio.  Also use this length to report
                 percent progress. */
@@ -11,9 +12,9 @@
          }
          else
          {
---- /mnt/git/object/9e6bc60eca7b34de0173ae12a5de7d6699bffe86/tree/src/opusdec.c
-+++ src/opusdec.c
-@@ -436,27 +436,13 @@
+--- a/src/opusdec.c
++++ b/src/opusdec.c
+@@ -445,27 +445,13 @@
      defined HAVE_SYS_AUDIOIO_H || defined WIN32 || defined _WIN32
     printf("Usage: opusdec [options] input [output]\n");
  #else
@@ -42,7 +43,7 @@
     printf(" -h, --help            Show this help\n");
     printf(" -V, --version         Show version information\n");
     printf(" --quiet               Suppress program output\n");
-@@ -468,7 +454,6 @@
+@@ -477,7 +463,6 @@
     printf(" --force-wav           Force Wave header on output\n");
     printf(" --packet-loss n       Simulate n %% random packet loss\n");
     printf(" --save-range file     Save check values for every frame to a file\n");
@@ -50,7 +51,7 @@
  }
  
  void version(void)
-@@ -683,7 +668,7 @@
+@@ -692,7 +677,7 @@
     int file_output;
     int old_li=-1;
     int li;
@@ -59,7 +60,7 @@
     int forcewav = 0;
     ogg_int64_t nb_read_total=0;
     ogg_int64_t link_read=0;
-@@ -709,10 +694,10 @@
+@@ -718,10 +703,10 @@
     float loss_percent=-1;
     float manual_gain=0;
     int force_rate=0;
@@ -72,7 +73,7 @@
     int wav_format=0;
     int dither=1;
     int fp=0;
-@@ -801,13 +786,7 @@
+@@ -810,13 +795,7 @@
           goto done;
        }
     }
@@ -87,7 +88,7 @@
  
     /*Output to a file or playback?*/
     file_output=argc_utf8-optind==2;
-@@ -824,7 +803,7 @@
+@@ -833,7 +812,7 @@
       }
       wav_format|=forcewav;
     } else {
@@ -96,8 +97,8 @@
       wav_format=0;
       /*If playing to audio out, default the rate to 48000
         instead of the original rate. The original rate is
---- /mnt/git/object/9e6bc60eca7b34de0173ae12a5de7d6699bffe86/tree/src/opusenc.c
-+++ src/opusenc.c
+--- a/src/opusenc.c
++++ b/src/opusenc.c
 @@ -117,20 +117,12 @@
  
  static void usage(void)
@@ -120,7 +121,7 @@
    printf("\nGeneral options:\n");
    printf(" -h, --help         Show this help\n");
    printf(" -V, --version      Show version information\n");
-@@ -419,7 +411,7 @@
+@@ -431,7 +423,7 @@
    time_t             last_spin=0;
    int                last_spin_len=0;
    /*Settings*/
@@ -129,10 +130,10 @@
    opus_int32         bitrate=-1;
    opus_int32         rate=48000;
    opus_int32         frame_size=960;
-@@ -460,12 +452,12 @@
-   range_file=NULL;
+@@ -474,12 +466,12 @@
    in_format=NULL;
    inopt.channels=chan;
+   inopt.channels_format=CHANNELS_FORMAT_DEFAULT;
 -  inopt.rate=rate;
 +  inopt.rate=44100;
    /* 0 dB gain is recommended unless you know what you're doing */
@@ -144,7 +145,7 @@
    inopt.rawmode_f=0;
    inopt.ignorelength=0;
    inopt.copy_comments=1;
-@@ -805,12 +797,8 @@
+@@ -827,12 +819,8 @@
      fatal("Invalid bit-depth:\n"
        "--raw-bits must be 32 for float sample format\n");
    }

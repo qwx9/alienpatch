@@ -1,6 +1,7 @@
---- /mnt/git/branch/heads/master/tree/celt/stack_alloc.h	Wed Dec  4 11:00:56 2019
-+++ celt/stack_alloc.h	Sat Feb  1 15:27:54 2020
-@@ -140,7 +140,7 @@ extern char *global_stack_top;
+diff a8e6a77c5fe0c37aa6788f939f24f8cd22ae2652 uncommitted
+--- a/celt/stack_alloc.h
++++ b/celt/stack_alloc.h
+@@ -140,7 +140,7 @@
  
  #else
  
@@ -9,8 +10,8 @@
  #define PUSH(stack, size, type) (ALIGN((stack),sizeof(type)/sizeof(char)),(stack)+=(size)*(sizeof(type)/sizeof(char)),(type*)((stack)-(size)*(sizeof(type)/sizeof(char))))
  #if 0 /* Set this to 1 to instrument pseudostack usage */
  #define RESTORE_STACK (printf("%ld %s:%d\n", global_stack-scratch_ptr, __FILE__, __LINE__),global_stack = _saved_stack)
---- /dev/null	Wed Jan  8 06:24:14 2020
-+++ mkfile	Sat Feb  1 20:40:04 2020
+--- /tmp/fuckyoutoo
++++ mkfile
 @@ -0,0 +1,187 @@
 +APE=/sys/src/ape
 +<$APE/config
@@ -199,9 +200,9 @@
 +$HFILES:
 +	mkdir -p /sys/include/ape/opus
 +	dircp include /sys/include/ape/opus
---- /mnt/git/branch/heads/master/tree/silk/LPC_inv_pred_gain.c	Wed Dec  4 11:00:56 2019
-+++ silk/LPC_inv_pred_gain.c	Sat Feb  1 19:26:10 2020
-@@ -45,7 +45,7 @@ static opus_int32 LPC_inverse_pred_gain_
+--- a/silk/LPC_inv_pred_gain.c
++++ b/silk/LPC_inv_pred_gain.c
+@@ -45,7 +45,7 @@
  )
  {
      opus_int   k, n, mult2Q;
@@ -210,7 +211,7 @@
  
      invGain_Q30 = SILK_FIX_CONST( 1, 30 );
      for( k = order - 1; k > 0; k-- ) {
-@@ -80,14 +80,14 @@ static opus_int32 LPC_inverse_pred_gain_
+@@ -80,14 +80,14 @@
              opus_int64 tmp64;
              tmp1 = A_QA[ n ];
              tmp2 = A_QA[ k - n - 1 ];
