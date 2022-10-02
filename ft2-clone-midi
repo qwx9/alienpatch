@@ -1,0 +1,224 @@
+diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
+--- /dev/null
++++ b/midi.c
+@@ -1,0 +1,163 @@
++#include <stdio.h>
++#include <thread.h>
++#include "ft2_header.h"
++#include "ft2_edit.h"
++#include "ft2_config.h"
++#include "ft2_gui.h"
++#include "ft2_midi.h"
++#include "ft2_audio.h"
++#include "ft2_mouse.h"
++#include "ft2_pattern_ed.h"
++#include "ft2_structs.h"
++#include "rtmidi/rtmidi_c.h"
++
++static struct RtMidiWrapper kek;
++static RtMidiCCallback callback;
++static int mpid = -1;
++static char *epfile, *eptab[MAX_MIDI_DEVICES];
++static int neps;
++
++/* not doing more than this, démerdez-vous. */
++static int
++scanthefucking(void)
++{
++	int fd, i, n, m;
++	char *s, **t, **e, buf[256], *p;
++	Dir *d;
++
++	e = eptab + nelem(eptab);
++	for(t=eptab; t<e; t++){
++		free(*t);
++		*t = nil;
++	}
++	neps = 0;
++	t = eptab;
++	/* special case for plugging in any non endpoint file */
++	if((s = getenv("midikbd")) != nil){
++		*t++ = s;
++		neps++;
++	}
++	if((fd = open("/dev/usb", OREAD)) < 0){
++		fprint(2, "scanusbep: %r\n");
++		return neps;
++	}
++	n = dirreadall(fd, &d);
++	close(fd);
++	if(n < 0){
++		fprint(2, "scanusbep: %r\n");
++		return neps;
++	}
++	for(i=0; i<n; i++){
++		snprint(buf, sizeof buf, "/dev/usb/%s/ctl", d[i].name);
++		if((fd = open(buf, OREAD)) < 0)
++			continue;
++		if((m = pread(fd, buf, sizeof buf, 0)) <= 0)
++			continue;
++		close(fd);
++		buf[m-1] = 0;
++		if((p = strchr(buf, '\n')) != nil)
++			*p = 0;
++		if((p = strrchr(buf, ' ')) == nil)
++			continue;
++		if(strcmp(++p, "idle") != 0)
++			continue;
++		if((*t++ = smprint("/dev/usb/%s/data", d[i].name)) == nil)
++			sysfatal("smprint: %r\n");
++		neps++;
++		if(t >= e)
++			break;
++	}
++	free(d);
++	return neps;
++}
++
++unsigned int
++rtmidi_get_port_count(RtMidiPtr)
++{
++	kek.ok = true;
++	return scanthefucking();
++}
++
++char *
++rtmidi_get_port_name(RtMidiPtr, unsigned int i)
++{
++	char *s;
++
++	assert(i < neps);
++	if((s = strdup(eptab[i])) == nil)
++		sysfatal("strdup: %r");
++	return s;
++}
++
++void
++rtmidi_in_cancel_callback(RtMidiInPtr)
++{
++}
++
++void rtmidi_close_port(RtMidiPtr)
++{
++	threadkill(mpid);
++	mpid = -1;
++	callback = nil;
++	kek.ok = false;
++	epfile = nil;
++}
++
++void rtmidi_in_free(RtMidiInPtr)
++{
++}
++
++RtMidiInPtr
++rtmidi_in_create_default(void)
++{
++	kek.ok = true;
++	return &kek;
++}
++
++void
++midiproc(void *ep)
++{
++	int fd, n, k;
++	uchar buf[1024];
++
++	if((fd = open((char*)ep, OREAD)) < 0){
++		fprint(2, "midiproc: could not open stream: %r; exiting");
++		goto end;
++	}
++	while((n = read(fd, buf, sizeof buf)) > 0){
++		if(n & 3)
++			fprint(2, "midiproc: malformed message size %d\n", n);
++		for(k=0; k<n; k+=4)
++			if(callback != nil)
++				callback(.0, buf+k, 4, nil);
++			else
++				fprint(2, "midiproc: discarding message\n");
++	}
++	fprint(2, "midiproc is off this merry-go-round: %r\n");
++end:
++	epfile = nil;
++	kek.ok = false;
++	mpid = -1;
++}
++
++void
++rtmidi_open_port(RtMidiPtr, unsigned int i, char *)
++{
++	assert(mpid < 0);
++	assert(i < neps);
++	kek.ok = true;
++	epfile = eptab[i];
++	if((mpid = proccreate(midiproc, epfile, mainstacksize)) < 0)
++		sysfatal("proccreate: %r");
++}
++
++void
++rtmidi_in_set_callback(RtMidiInPtr, RtMidiCCallback fn, void *)
++{
++	callback = fn;
++}
++
++void
++rtmidi_in_ignore_types(RtMidiInPtr, bool, bool, bool)
++{
++}
+--- a/mkfile.plan9
++++ b/mkfile.plan9
+@@ -2,7 +2,7 @@
+ 
+ BIN=/$objtype/bin/audio
+ TARG=ft2
+-CFLAGS=$CFLAGS -p -Isrc -I/sys/include/npe -D__plan9__
++CFLAGS=$CFLAGS -p -Isrc -Isrc/rtmidi -I/sys/include/npe -D__plan9__ -DHAS_MIDI
+ 
+ HFILES=\
+ 	src/ft2_about.h\
+@@ -122,6 +122,7 @@
+ 	src/smploaders/ft2_load_iff.$O\
+ 	src/smploaders/ft2_load_raw.$O\
+ 	src/smploaders/ft2_load_wav.$O\
++	midi.$O\
+ 
+ default:V: all
+ 
+--- a/src/ft2_midi.c
++++ b/src/ft2_midi.c
+@@ -104,13 +104,13 @@
+ 	if (!midi.enable || messageSize < 2)
+ 		return;
+ 
+-	byte[0] = message[0];
++	byte[0] = message[1];
+ 	if (byte[0] > 127 && byte[0] < 240)
+ 	{
+-		byte[1] = message[1] & 0x7F;
++		byte[1] = message[2] & 0x7F;
+ 
+ 		if (messageSize >= 3)
+-			byte[2] = message[2] & 0x7F;
++			byte[2] = message[3] & 0x7F;
+ 		else
+ 			byte[2] = 0;
+ 
+@@ -262,7 +262,8 @@
+ 	if (numDevices == 0)
+ 		return false;
+ 
+-	char *midiInStr = getMidiInDeviceName(midi.inputDevice);
++	//char *midiInStr = getMidiInDeviceName(midi.inputDevice);
++	char *midiInStr = midi.inputDeviceName;
+ 	if (midiInStr == NULL)
+ 		return false;
+ 
+@@ -312,6 +313,8 @@
+ 	}
+ 
+ 	fclose(f);
++
++	midi.inputDeviceName = devString;
+ 
+ 	// scan for device in list
+ 	char *midiInStr = NULL;
