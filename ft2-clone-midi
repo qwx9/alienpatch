@@ -1,7 +1,7 @@
-diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
+diff f75ed687deda27988f9a566c35efdc074ecf84ed uncommitted
 --- /dev/null
 +++ b/midi.c
-@@ -1,0 +1,163 @@
+@@ -1,0 +1,167 @@
 +#include <stdio.h>
 +#include <thread.h>
 +#include "ft2_header.h"
@@ -15,18 +15,17 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +#include "ft2_structs.h"
 +#include "rtmidi/rtmidi_c.h"
 +
-+static struct RtMidiWrapper kek;
++static struct RtMidiWrapper notrt;
 +static RtMidiCCallback callback;
 +static int mpid = -1;
 +static char *epfile, *eptab[MAX_MIDI_DEVICES];
 +static int neps;
 +
-+/* not doing more than this, démerdez-vous. */
 +static int
-+scanthefucking(void)
++scaneps(void)
 +{
 +	int fd, i, n, m;
-+	char *s, **t, **e, buf[256], *p;
++	char *s, *p, **t, **e, buf[512], *fl[32];
 +	Dir *d;
 +
 +	e = eptab + nelem(eptab);
@@ -53,18 +52,23 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +	}
 +	for(i=0; i<n; i++){
 +		snprint(buf, sizeof buf, "/dev/usb/%s/ctl", d[i].name);
++		if(epfile != nil && (s = strrchr(epfile, '/')) != nil){
++			if(strncmp(buf, epfile, s - epfile) == 0)
++				goto gotit;
++		}
 +		if((fd = open(buf, OREAD)) < 0)
 +			continue;
 +		if((m = pread(fd, buf, sizeof buf, 0)) <= 0)
 +			continue;
 +		close(fd);
 +		buf[m-1] = 0;
-+		if((p = strchr(buf, '\n')) != nil)
-+			*p = 0;
-+		if((p = strrchr(buf, ' ')) == nil)
++		if(getfields(buf, fl, nelem(fl), 0, " ") < 26)
 +			continue;
-+		if(strcmp(++p, "idle") != 0)
++		if(strcmp(fl[0], "enabled") != 0
++		|| strcmp(fl[2], "r") != 0 && strcmp(fl[2], "rw") != 0
++		|| strcmp(fl[25], "idle") != 0)
 +			continue;
++	gotit:
 +		if((*t++ = smprint("/dev/usb/%s/data", d[i].name)) == nil)
 +			sysfatal("smprint: %r\n");
 +		neps++;
@@ -78,8 +82,8 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +unsigned int
 +rtmidi_get_port_count(RtMidiPtr)
 +{
-+	kek.ok = true;
-+	return scanthefucking();
++	notrt.ok = true;
++	return scaneps();
 +}
 +
 +char *
@@ -103,7 +107,7 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +	threadkill(mpid);
 +	mpid = -1;
 +	callback = nil;
-+	kek.ok = false;
++	notrt.ok = false;
 +	epfile = nil;
 +}
 +
@@ -114,8 +118,8 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +RtMidiInPtr
 +rtmidi_in_create_default(void)
 +{
-+	kek.ok = true;
-+	return &kek;
++	notrt.ok = true;
++	return &notrt;
 +}
 +
 +void
@@ -133,14 +137,14 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +			fprint(2, "midiproc: malformed message size %d\n", n);
 +		for(k=0; k<n; k+=4)
 +			if(callback != nil)
-+				callback(.0, buf+k, 4, nil);
++				callback(.0, buf+k+1, 3, nil);
 +			else
 +				fprint(2, "midiproc: discarding message\n");
 +	}
 +	fprint(2, "midiproc is off this merry-go-round: %r\n");
 +end:
 +	epfile = nil;
-+	kek.ok = false;
++	notrt.ok = false;
 +	mpid = -1;
 +}
 +
@@ -149,7 +153,7 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
 +{
 +	assert(mpid < 0);
 +	assert(i < neps);
-+	kek.ok = true;
++	notrt.ok = true;
 +	epfile = eptab[i];
 +	if((mpid = proccreate(midiproc, epfile, mainstacksize)) < 0)
 +		sysfatal("proccreate: %r");
@@ -184,41 +188,3 @@ diff 4139e82efd5d43b1e5f2514c129b5c1583df79ef uncommitted
  
  default:V: all
  
---- a/src/ft2_midi.c
-+++ b/src/ft2_midi.c
-@@ -104,13 +104,13 @@
- 	if (!midi.enable || messageSize < 2)
- 		return;
- 
--	byte[0] = message[0];
-+	byte[0] = message[1];
- 	if (byte[0] > 127 && byte[0] < 240)
- 	{
--		byte[1] = message[1] & 0x7F;
-+		byte[1] = message[2] & 0x7F;
- 
- 		if (messageSize >= 3)
--			byte[2] = message[2] & 0x7F;
-+			byte[2] = message[3] & 0x7F;
- 		else
- 			byte[2] = 0;
- 
-@@ -262,7 +262,8 @@
- 	if (numDevices == 0)
- 		return false;
- 
--	char *midiInStr = getMidiInDeviceName(midi.inputDevice);
-+	//char *midiInStr = getMidiInDeviceName(midi.inputDevice);
-+	char *midiInStr = midi.inputDeviceName;
- 	if (midiInStr == NULL)
- 		return false;
- 
-@@ -312,6 +313,8 @@
- 	}
- 
- 	fclose(f);
-+
-+	midi.inputDeviceName = devString;
- 
- 	// scan for device in list
- 	char *midiInStr = NULL;
