@@ -1,0 +1,35 @@
+diff 9b229580bea671db24e68f476e6f5d2a5a6360dd uncommitted
+--- /dev/null
++++ b/mkfile
+@@ -1,0 +1,16 @@
++</$objtype/mkfile
++BIN=.
++TARG=test
++OFILES=\
++	gsacak.$O\
++	gsais.$O\
++	test.$O\
++
++HFILES=\
++	gsacak.h\
++	gsais.h\
++
++</sys/src/cmd/mkone
++
++CC=pcc
++CFLAGS=-c -p -DM64=1
+--- a/test.c
++++ b/test.c
+@@ -52,10 +52,10 @@
+ 	// allocate
+ 	uint_t *SA = (uint_t *)malloc(n * sizeof(uint_t));
+ 	int_t *LCP = (int_t *)malloc(n * sizeof(int_t));
+-	int_t *DA = (int_t *)malloc(n * sizeof(int_t));
++	uint_t *DA = (uint_t *)malloc(n * sizeof(uint_t));
+ 	
+ 	// sort
+-	gsacak((unsigned char *)Text, (uint_t*)SA, LCP, DA, n);
++	gsacak((unsigned char *)Text, SA, LCP, DA, n);
+ 	
+ 	// output
+ 	printf("i\tSA\tDA\tLCP\tBWT\tsuffixes\n");
