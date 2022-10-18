@@ -1,71 +1,30 @@
-diff 1d5e00558c79cf9a4266124d393cfbc879df7475 uncommitted
---- a/src/opusdec.c
-+++ b/src/opusdec.c
-@@ -493,7 +493,7 @@
+--- opus-tools/src/opusdec.c	2022-10-11 16:35:05.577273603 +0200
++++ opus-tools/src/opusdec.c	2022-10-18 01:42:38.276862173 +0200
+@@ -463,6 +463,7 @@
+    printf(" --force-wav           Force Wave header on output\n");
+    printf(" --packet-loss n       Simulate n %% random packet loss\n");
+    printf(" --save-range file     Save check values for every frame to a file\n");
++   printf(" -s, --seek seconds    Seek within the stream before decoding\n");
+ }
  
- opus_int64 audio_write(float *pcm, int channels, int frame_size, FILE *fout,
-  SpeexResamplerState *resampler, float *clipmem, shapestate *shapemem,
-- int file, int rate, opus_int64 link_read, opus_int64 link_out, int fp)
-+ int file, int rate, opus_int64 link_read, opus_int64 link_out, int fp, opus_int64 *seek)
- {
-    opus_int64 sampout=0;
-    opus_int64 maxout;
-@@ -521,12 +521,20 @@
-         pcm, &in_len, buf, &out_len);
-        pcm += channels*(in_len);
-        frame_size -= in_len;
-+       ret = *seek<in_len?*seek:in_len;
-      } else {
-        output=pcm;
-        out_len=frame_size<maxout?(unsigned)frame_size:(unsigned)maxout;
-        frame_size=0;
-+       ret = *seek<out_len?*seek:out_len;
-      }
- 
-+     if (*seek > 0)
-+     {
-+       *seek -= ret;
-+       goto next;
-+     }
-+
-      if (!file||!fp)
-      {
-         /*Convert to short and save to output file*/
-@@ -570,6 +578,7 @@
- #endif
-          ret=fwrite(fp?(char *)output:(char *)out,
-           (fp?sizeof(float):sizeof(short))*channels, out_len, fout);
-+next:
-        sampout+=ret;
-        maxout-=ret;
-      }
-@@ -656,7 +665,7 @@
- static void drain_resampler(FILE *fout, int file_output,
-  SpeexResamplerState *resampler, int channels, int rate,
-  opus_int64 link_read, opus_int64 link_out, float *clipmem,
-- shapestate *shapemem, opus_int64 *audio_size, int fp)
-+ shapestate *shapemem, opus_int64 *audio_size, int fp, opus_int64 *seek)
- {
-    float *zeros;
-    int drain;
-@@ -667,7 +676,7 @@
-       opus_int64 outsamp;
-       int tmp=MINI(drain, 100);
-       outsamp=audio_write(zeros, channels, tmp, fout, resampler, clipmem,
--       shapemem, file_output, rate, link_read, link_out, fp);
-+       shapemem, file_output, rate, link_read, link_out, fp, seek);
-       link_out+=outsamp;
-       (*audio_size)+=(fp?sizeof(float):sizeof(short))*outsamp*channels;
-       drain-=tmp;
-@@ -714,6 +723,7 @@
+ void version(void)
+@@ -682,6 +683,7 @@
+    ogg_int64_t nb_read_total=0;
+    ogg_int64_t link_read=0;
+    ogg_int64_t link_out=0;
++   double seek=0.0;
+    struct option long_options[] =
+    {
+       {"help", no_argument, NULL, 0},
+@@ -696,6 +698,7 @@
+       {"force-wav", no_argument, NULL, 0},
+       {"packet-loss", required_argument, NULL, 0},
+       {"save-range", required_argument, NULL, 0},
++      {"seek", required_argument, NULL, 0},
        {0, 0, 0, 0}
     };
     opus_int64 audio_size=0;
-+   opus_int64 seek=-1;
-    opus_int64 last_coded_seconds=-1;
-    float loss_percent=-1;
-    float manual_gain=0;
-@@ -749,7 +759,7 @@
+@@ -734,7 +737,7 @@
     /*Process options*/
     while (1)
     {
@@ -74,52 +33,39 @@ diff 1d5e00558c79cf9a4266124d393cfbc879df7475 uncommitted
                         long_options, &option_index);
        if (c==-1)
           break;
-@@ -801,6 +811,9 @@
+@@ -781,6 +784,9 @@
+          } else if (strcmp(long_options[option_index].name,"packet-loss")==0)
+          {
+             loss_percent = atof(optarg);
++         } else if (strcmp(long_options[option_index].name,"seek")==0)
++         {
++            seek = atof(optarg);
+          }
+          break;
        case 'h':
-          usage();
-          goto done;
-+      case 's':
-+         seek = atoi(optarg);
-+         break;
+@@ -789,6 +795,9 @@
        case 'V':
           version();
           goto done;
-@@ -1020,6 +1033,11 @@
++      case 's':
++         seek = atof(optarg);
++         break;
+       case '?':
+          usage();
+          exit_code=1;
+@@ -999,6 +1008,14 @@
        op_set_decode_callback(st, (op_decode_cb_func)decode_cb, &cb_ctx);
     }
  
-+   if (seek != -1)
-+   {
-+      seek *= rate;
++   if (seek > 0.0) {
++      if (op_pcm_seek(st, seek*48000) != 0)
++      {
++         seek = 0.0;
++      }
++      fprintf(stderr, "time: %g\n", seek);
 +   }
 +
     /*Main decoding loop*/
     while (1)
     {
-@@ -1063,7 +1081,7 @@
-          {
-             drain_resampler(fout, file_output, resampler, channels, rate,
-              link_read, link_out, clipmem, dither?&shapemem:NULL, &audio_size,
--             fp);
-+             fp, &seek);
-             /*Neither speex_resampler_reset_mem() nor
-               speex_resampler_skip_zeros() clear the number of fractional
-               samples properly, so we just destroy it. It will get re-created
-@@ -1171,7 +1189,7 @@
-       }
-       outsamp=audio_write(permuted_output?permuted_output:output, channels,
-        nb_read, fout, resampler, clipmem, dither?&shapemem:0, file_output,
--       rate, link_read, link_out, fp);
-+       rate, link_read, link_out, fp, &seek);
-       link_out+=outsamp;
-       audio_size+=(fp?sizeof(float):sizeof(short))*outsamp*channels;
-    }
-@@ -1179,7 +1197,7 @@
-    if (resampler!=NULL)
-    {
-       drain_resampler(fout, file_output, resampler, channels, rate,
--       link_read, link_out, clipmem, dither?&shapemem:NULL, &audio_size, fp);
-+       link_read, link_out, clipmem, dither?&shapemem:NULL, &audio_size, fp, &seek);
-       speex_resampler_destroy(resampler);
-    }
- 
+
