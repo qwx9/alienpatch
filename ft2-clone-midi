@@ -1,7 +1,7 @@
-diff f75ed687deda27988f9a566c35efdc074ecf84ed uncommitted
+diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 --- /dev/null
 +++ b/midi.c
-@@ -1,0 +1,167 @@
+@@ -1,0 +1,171 @@
 +#include <stdio.h>
 +#include <thread.h>
 +#include "ft2_header.h"
@@ -91,7 +91,9 @@ diff f75ed687deda27988f9a566c35efdc074ecf84ed uncommitted
 +{
 +	char *s;
 +
-+	assert(i < neps);
++	//assert(i < neps);
++	if(i >= neps)
++		return epfile;
 +	if((s = strdup(eptab[i])) == nil)
 +		sysfatal("strdup: %r");
 +	return s;
@@ -152,6 +154,8 @@ diff f75ed687deda27988f9a566c35efdc074ecf84ed uncommitted
 +rtmidi_open_port(RtMidiPtr, unsigned int i, char *)
 +{
 +	assert(mpid < 0);
++	if(i >= neps)	/* could be plugging in a new device, try again */
++		scaneps();
 +	assert(i < neps);
 +	notrt.ok = true;
 +	epfile = eptab[i];
