@@ -1,0 +1,323 @@
+diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
+--- /dev/null
++++ b/midi.c
+@@ -1,0 +1,171 @@
++#include <stdio.h>
++#include <thread.h>
++#include "ft2_header.h"
++#include "ft2_edit.h"
++#include "ft2_config.h"
++#include "ft2_gui.h"
++#include "ft2_midi.h"
++#include "ft2_audio.h"
++#include "ft2_mouse.h"
++#include "ft2_pattern_ed.h"
++#include "ft2_structs.h"
++#include "rtmidi/rtmidi_c.h"
++
++static struct RtMidiWrapper notrt;
++static RtMidiCCallback callback;
++static int mpid = -1;
++static char *epfile, *eptab[MAX_MIDI_DEVICES];
++static int neps;
++
++static int
++scaneps(void)
++{
++	int fd, i, n, m;
++	char *s, *p, **t, **e, buf[512], *fl[32];
++	Dir *d;
++
++	e = eptab + nelem(eptab);
++	for(t=eptab; t<e; t++){
++		free(*t);
++		*t = nil;
++	}
++	neps = 0;
++	t = eptab;
++	/* special case for plugging in any non endpoint file */
++	if((s = getenv("midikbd")) != nil){
++		*t++ = s;
++		neps++;
++	}
++	if((fd = open("/dev/usb", OREAD)) < 0){
++		fprint(2, "scanusbep: %r\n");
++		return neps;
++	}
++	n = dirreadall(fd, &d);
++	close(fd);
++	if(n < 0){
++		fprint(2, "scanusbep: %r\n");
++		return neps;
++	}
++	for(i=0; i<n; i++){
++		snprint(buf, sizeof buf, "/dev/usb/%s/ctl", d[i].name);
++		if(epfile != nil && (s = strrchr(epfile, '/')) != nil){
++			if(strncmp(buf, epfile, s - epfile) == 0)
++				goto gotit;
++		}
++		if((fd = open(buf, OREAD)) < 0)
++			continue;
++		if((m = pread(fd, buf, sizeof buf, 0)) <= 0)
++			continue;
++		close(fd);
++		buf[m-1] = 0;
++		if(getfields(buf, fl, nelem(fl), 0, " ") < 26)
++			continue;
++		if(strcmp(fl[0], "enabled") != 0
++		|| strcmp(fl[2], "r") != 0 && strcmp(fl[2], "rw") != 0
++		|| strcmp(fl[25], "idle") != 0)
++			continue;
++	gotit:
++		if((*t++ = smprint("/dev/usb/%s/data", d[i].name)) == nil)
++			sysfatal("smprint: %r\n");
++		neps++;
++		if(t >= e)
++			break;
++	}
++	free(d);
++	return neps;
++}
++
++unsigned int
++rtmidi_get_port_count(RtMidiPtr)
++{
++	notrt.ok = true;
++	return scaneps();
++}
++
++char *
++rtmidi_get_port_name(RtMidiPtr, unsigned int i)
++{
++	char *s;
++
++	//assert(i < neps);
++	if(i >= neps)
++		return epfile;
++	if((s = strdup(eptab[i])) == nil)
++		sysfatal("strdup: %r");
++	return s;
++}
++
++void
++rtmidi_in_cancel_callback(RtMidiInPtr)
++{
++}
++
++void rtmidi_close_port(RtMidiPtr)
++{
++	threadkill(mpid);
++	mpid = -1;
++	callback = nil;
++	notrt.ok = false;
++	epfile = nil;
++}
++
++void rtmidi_in_free(RtMidiInPtr)
++{
++}
++
++RtMidiInPtr
++rtmidi_in_create_default(void)
++{
++	notrt.ok = true;
++	return &notrt;
++}
++
++void
++midiproc(void *ep)
++{
++	int fd, n, k;
++	uchar buf[1024];
++
++	if((fd = open((char*)ep, OREAD)) < 0){
++		fprint(2, "midiproc: could not open stream: %r; exiting");
++		goto end;
++	}
++	while((n = read(fd, buf, sizeof buf)) > 0){
++		if(n & 3)
++			fprint(2, "midiproc: malformed message size %d\n", n);
++		for(k=0; k<n; k+=4)
++			if(callback != nil)
++				callback(.0, buf+k+1, 3, nil);
++			else
++				fprint(2, "midiproc: discarding message\n");
++	}
++	fprint(2, "midiproc is off this merry-go-round: %r\n");
++end:
++	epfile = nil;
++	notrt.ok = false;
++	mpid = -1;
++}
++
++void
++rtmidi_open_port(RtMidiPtr, unsigned int i, char *)
++{
++	assert(mpid < 0);
++	if(i >= neps)	/* could be plugging in a new device, try again */
++		scaneps();
++	assert(i < neps);
++	notrt.ok = true;
++	epfile = eptab[i];
++	if((mpid = proccreate(midiproc, epfile, mainstacksize)) < 0)
++		sysfatal("proccreate: %r");
++}
++
++void
++rtmidi_in_set_callback(RtMidiInPtr, RtMidiCCallback fn, void *)
++{
++	callback = fn;
++}
++
++void
++rtmidi_in_ignore_types(RtMidiInPtr, bool, bool, bool)
++{
++}
+--- a/src/ft2_audio.c
++++ b/src/ft2_audio.c
+@@ -5,6 +5,7 @@
+ 
+ #include <stdio.h>
+ #include <stdint.h>
++#include <math.h>
+ #include "ft2_header.h"
+ #include "ft2_config.h"
+ #include "scopes/ft2_scopes.h"
+--- a/src/ft2_hpc.c
++++ b/src/ft2_hpc.c
+@@ -11,6 +11,7 @@
+ #include <SDL2/SDL.h>
+ #include <stdint.h>
+ #include <stdbool.h>
++#include <math.h>
+ #include "ft2_hpc.h"
+ 
+ #define FRAC_BITS 53
+--- a/src/ft2_main.c
++++ b/src/ft2_main.c
+@@ -93,12 +93,12 @@
+ 	}
+ #endif
+ 
+-#ifdef _WIN32
+-
+ 	// ALT+F4 is used in FT2, but is "close program" in Windows...
+ #if SDL_MINOR_VERSION >= 24 || (SDL_MINOR_VERSION == 0 && SDL_PATCHLEVEL >= 4)
+ 	SDL_SetHint(SDL_HINT_WINDOWS_NO_CLOSE_ON_ALT_F4, "1");
+ #endif
++
++#ifdef _WIN32
+ 
+ #ifndef _MSC_VER
+ 	SetProcessDPIAware();
+--- a/src/ft2_midi.c
++++ b/src/ft2_midi.c
+@@ -285,7 +285,10 @@
+ 	uint32_t i;
+ 
+ 	if (midi.inputDeviceName != NULL)
++	{
+ 		free(midi.inputDeviceName);
++		midi.inputDeviceName = NULL;
++	}
+ 
+ 	const uint32_t numDevices = getNumMidiInDevices();
+ 	if (numDevices == 0)
+--- a/src/ft2_scrollbars.c
++++ b/src/ft2_scrollbars.c
+@@ -224,7 +224,7 @@
+ 			{
+ 				dTmp = (scrollBar->w / (double)scrollBar->end) * scrollBar->page;
+ 				tmp32 = (int32_t)(dTmp + 0.5);
+-				realThumbLength = (int16_t)CLAMP(tmp32, 1, scrollBar->w);
++				realThumbLength = (int16_t)CLAMP(tmp32, 1, (int)scrollBar->w);
+ 			}
+ 			else
+ 			{
+@@ -251,7 +251,7 @@
+ 		}
+ 
+ 		// prevent scrollbar thumb coords from being outside of the scrollbar area
+-		thumbX = CLAMP(thumbX, scrollBar->x, scrollEnd-1);
++		thumbX = CLAMP((int)thumbX, (int)scrollBar->x, (int)scrollEnd-1);
+ 		if (thumbX+thumbW > scrollEnd)
+ 			thumbW = scrollEnd - thumbX;
+ 	}
+@@ -267,7 +267,7 @@
+ 		{
+ 			dTmp = (scrollBar->h / (double)scrollBar->end) * scrollBar->page;
+ 			tmp32 = (int32_t)(dTmp + 0.5);
+-			realThumbLength = (int16_t)CLAMP(tmp32, 1, scrollBar->h);
++			realThumbLength = (int16_t)CLAMP(tmp32, 1, (int)scrollBar->h);
+ 		}
+ 		else
+ 		{
+@@ -293,7 +293,7 @@
+ 		}
+ 
+ 		// prevent scrollbar thumb coords from being outside of the scrollbar area
+-		thumbY = CLAMP(thumbY, scrollBar->y, scrollEnd - 1);
++		thumbY = CLAMP((int)thumbY, (int)scrollBar->y, (int)scrollEnd - 1);
+ 		if (thumbY+thumbH > scrollEnd)
+ 			thumbH = scrollEnd - thumbY;
+ 	}
+@@ -523,7 +523,7 @@
+ 					}
+ 
+ 					assert(scrollBar->w > 0);
+-					scrollPos = CLAMP(scrollPos, 0, scrollBar->w);
++					scrollPos = CLAMP((int)scrollPos, 0, (int)scrollBar->w);
+ 
+ 					length = scrollBar->w + (scrollBar->realThumbLength - scrollBar->thumbW);
+ 					if (length < 1)
+@@ -549,7 +549,7 @@
+ 					scrollPos = mouse.lastScrollY - scrollBar->y - mouse.saveMouseY;
+ 
+ 					assert(scrollBar->h > 0);
+-					scrollPos = CLAMP(scrollPos, 0, scrollBar->h);
++					scrollPos = CLAMP((int)scrollPos, 0, (int)scrollBar->h);
+ 
+ 					length = scrollBar->h + (scrollBar->realThumbLength - scrollBar->thumbH);
+ 					if (length < 1)
+@@ -617,7 +617,7 @@
+ 			}
+ 
+ 			assert(scrollBar->w > 0);
+-			scrollX = CLAMP(scrollX, 0, scrollBar->w);
++			scrollX = CLAMP((int)scrollX, 0, (int)scrollBar->w);
+ 
+ 			length = scrollBar->w + (scrollBar->realThumbLength - scrollBar->thumbW);
+ 			if (length < 1)
+@@ -641,7 +641,7 @@
+ 			scrollY = mouse.lastScrollY - mouse.saveMouseY - scrollBar->y;
+ 
+ 			assert(scrollBar->h > 0);
+-			scrollY = CLAMP(scrollY, 0, scrollBar->h);
++			scrollY = CLAMP((int)scrollY, 0, (int)scrollBar->h);
+ 
+ 			length = scrollBar->h + (scrollBar->realThumbLength - scrollBar->thumbH);
+ 			if (length < 1)
+--- a/src/ft2_video.c
++++ b/src/ft2_video.c
+@@ -80,9 +80,9 @@
+ 
+ static void drawFPSCounter(void)
+ {
+-	SDL_version SDLVer;
++	//SDL_version SDLVer;
+ 
+-	SDL_GetVersion(&SDLVer);
++	//SDL_GetVersion(&SDLVer);
+ 
+ 	if (editor.framesPassed >= FPS_SCAN_FRAMES && (editor.framesPassed % FPS_SCAN_FRAMES) == 0)
+ 	{
+@@ -132,7 +132,8 @@
+ 	             "Relative mouse coords: %d,%d\n" \
+ 	             "Absolute mouse coords: %d,%d\n" \
+ 	             "Press CTRL+SHIFT+F to close this box.\n",
+-	             SDLVer.major, SDLVer.minor, SDLVer.patch,
++	             //SDLVer.major, SDLVer.minor, SDLVer.patch,
++	             9, 9, 9,
+ 	             dAvgFPS,
+ 	             dRefreshRate,
+ 	             video.vsync60HzPresent ? "yes" : "no",
