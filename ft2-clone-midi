@@ -173,6 +173,18 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 +rtmidi_in_ignore_types(RtMidiInPtr, bool, bool, bool)
 +{
 +}
+--- a/src/ft2_edit.c
++++ b/src/ft2_edit.c
+@@ -610,7 +610,8 @@
+ 	const bool frKeybHack = keyb.leftShiftPressed && !keyb.leftAltPressed && !keyb.leftCtrlPressed &&
+ 	               (scancode >= SDL_SCANCODE_1) && (scancode <= SDL_SCANCODE_0);
+ 
+-	if (frKeybHack || !keyb.keyModifierDown)
++//	if (frKeybHack || !keyb.keyModifierDown)
++	if (!keyb.keyModifierDown)
+ 		return (testEditKeys(scancode, keycode));
+ 
+ 	return false;
 --- a/mkfile.plan9
 +++ b/mkfile.plan9
 @@ -2,7 +2,7 @@
