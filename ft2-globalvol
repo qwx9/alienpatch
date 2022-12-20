@@ -1,0 +1,31 @@
+diff fde50d93b2284178743a12e8c359286ea99f0b21 uncommitted
+--- a/src/ft2_keyboard.c
++++ b/src/ft2_keyboard.c
+@@ -346,6 +346,27 @@
+ 		}
+ 		return;
+ 
++		case SDL_SCANCODE_VOLUMEUP:
++			if (config.masterVol <= 256-16)
++				config.masterVol += 16;
++			else
++				config.masterVol = 256;
++
++			setAudioAmp(config.boostLevel, config.masterVol, !!(config.specialFlags & BITDEPTH_32));
++			if (ui.configScreenShown && editor.currConfigScreen == CONFIG_SCREEN_IO_DEVICES)
++				showConfigScreen();
++			break;
++		case SDL_SCANCODE_VOLUMEDOWN:
++			if (config.masterVol >= 16)
++				config.masterVol -= 16;
++			else
++				config.masterVol = 0;
++
++			setAudioAmp(config.boostLevel, config.masterVol, !!(config.specialFlags & BITDEPTH_32));
++			if (ui.configScreenShown && editor.currConfigScreen == CONFIG_SCREEN_IO_DEVICES)
++				showConfigScreen();
++			break;
++
+ 		default: break;
+ 	}
+ 
