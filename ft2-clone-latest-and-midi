@@ -1,7 +1,6 @@
-diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 --- /dev/null
 +++ b/midi.c
-@@ -1,0 +1,171 @@
+@@ -1,0 +1,170 @@
 +#include <stdio.h>
 +#include <thread.h>
 +#include "ft2_header.h"
@@ -19,13 +18,14 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 +static RtMidiCCallback callback;
 +static int mpid = -1;
 +static char *epfile, *eptab[MAX_MIDI_DEVICES];
++static int disable[MAX_MIDI_DEVICES];
 +static int neps;
 +
 +static int
 +scaneps(void)
 +{
 +	int fd, i, n, m;
-+	char *s, *p, **t, **e, buf[512], *fl[32];
++	char *s, **t, **e, buf[512], *fl[32];
 +	Dir *d;
 +
 +	e = eptab + nelem(eptab);
@@ -41,13 +41,13 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 +		neps++;
 +	}
 +	if((fd = open("/dev/usb", OREAD)) < 0){
-+		fprint(2, "scanusbep: %r\n");
++		fprint(2, "scaneps: %r\n");
 +		return neps;
 +	}
 +	n = dirreadall(fd, &d);
 +	close(fd);
 +	if(n < 0){
-+		fprint(2, "scanusbep: %r\n");
++		fprint(2, "scaneps: %r\n");
 +		return neps;
 +	}
 +	for(i=0; i<n; i++){
@@ -91,9 +91,8 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 +{
 +	char *s;
 +
-+	//assert(i < neps);
 +	if(i >= neps)
-+		return epfile;
++		return NULL;
 +	if((s = strdup(eptab[i])) == nil)
 +		sysfatal("strdup: %r");
 +	return s;
@@ -125,12 +124,12 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 +}
 +
 +void
-+midiproc(void *ep)
++midiproc(void *)
 +{
 +	int fd, n, k;
 +	uchar buf[1024];
 +
-+	if((fd = open((char*)ep, OREAD)) < 0){
++	if((fd = open(epfile, OREAD)) < 0){
 +		fprint(2, "midiproc: could not open stream: %r; exiting");
 +		goto end;
 +	}
@@ -154,12 +153,11 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
 +rtmidi_open_port(RtMidiPtr, unsigned int i, char *)
 +{
 +	assert(mpid < 0);
-+	if(i >= neps)	/* could be plugging in a new device, try again */
-+		scaneps();
-+	assert(i < neps);
++	if(i >= neps)
++		return;
 +	notrt.ok = true;
 +	epfile = eptab[i];
-+	if((mpid = proccreate(midiproc, epfile, mainstacksize)) < 0)
++	if((mpid = proccreate(midiproc, nil, mainstacksize)) < 0)
 +		sysfatal("proccreate: %r");
 +}
 +
@@ -267,7 +265,20 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
  
 --- a/src/ft2_midi.c
 +++ b/src/ft2_midi.c
-@@ -285,7 +285,10 @@
+@@ -194,8 +194,11 @@
+ 	if (midiDev == NULL)
+ 		return false;
+ 
+-	if (getNumMidiInDevices() == 0)
++	const uint32_t numDevices = getNumMidiInDevices();
++	if (numDevices == 0 || numDevices != midi.numInputDevices){
++		midi.rescanDevicesFlag = true;
+ 		return false;
++	}
+ 
+ 	rtmidi_open_port(midiDev, deviceID, "FT2 Clone MIDI Port");
+ 	if (!midiDev->ok)
+@@ -285,7 +288,10 @@
  	uint32_t i;
  
  	if (midi.inputDeviceName != NULL)
@@ -278,6 +289,20 @@ diff d3f10b96512210ac8854f4355a11e9104a546644 uncommitted
  
  	const uint32_t numDevices = getNumMidiInDevices();
  	if (numDevices == 0)
+@@ -477,7 +483,12 @@
+ 	closeMidiInDevice();
+ 	freeMidiIn();
+ 	initMidiIn();
+-	openMidiInDevice(midi.inputDevice);
++	if(!openMidiInDevice(midi.inputDevice)){
++		free(midi.inputDeviceName);
++		midi.inputDeviceName = NULL;
++		midi.inputDevice = -1;
++		return false;
++	}
+ 
+ 	drawMidiInputList();
+ 	return true;
 --- a/src/ft2_video.c
 +++ b/src/ft2_video.c
 @@ -80,9 +80,9 @@
